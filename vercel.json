@@ -1,0 +1,6 @@
+{
+  "buildCommand": "pnpm --filter @frameforge/shared build && pnpm --filter @frameforge/db generate && pnpm --filter @frameforge/db build && pnpm --filter @frameforge/web build",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "pnpm install",
+  "framework": "nextjs"
+}
