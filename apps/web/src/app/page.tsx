@@ -18,7 +18,7 @@ export default function Home() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2 group">
             <Sparkles className="h-6 w-6 text-primary animate-glow" />
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+            <span className="text-xl font-bold" style={{ background: 'linear-gradient(to right, #7c3aed, #9333ea, #ec4899)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               FrameForge AI
             </span>
           </div>
@@ -43,16 +43,17 @@ export default function Home() {
             <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
           </div>
           
-          <div className={`mx-auto max-w-4xl space-y-8 ${mounted ? 'animate-fade-up' : 'opacity-0'}`}>
+          <div className={`mx-auto max-w-5xl space-y-8 ${mounted ? 'animate-fade-up' : 'opacity-0'}`}>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
               <Sparkles className="h-4 w-4" />
-              <span>AI-Powered Video Creation</span>
+              <span style={{ background: 'linear-gradient(to right, #7c3aed, #9333ea)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>AI-Powered Video Creation</span>
             </div>
-            <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-              Create Stunning Videos with{' '}
-              <span className="bg-gradient-to-r from-primary via-purple-600 to-pink-600 bg-clip-text text-transparent animate-glow">
-                AI Magic
-              </span>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl leading-tight">
+              <span style={{ background: 'linear-gradient(to right, #1e293b, #475569, #64748b)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Create</span>{' '}
+              <span style={{ background: 'linear-gradient(to right, #7c3aed, #9333ea, #ec4899)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Stunning</span>{' '}
+              <span style={{ background: 'linear-gradient(to right, #1e293b, #475569, #64748b)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Videos</span>{' '}
+              <span style={{ background: 'linear-gradient(to right, #7c3aed, #9333ea, #ec4899)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>with</span>{' '}
+              <span style={{ background: 'linear-gradient(45deg, #7c3aed, #9333ea, #ec4899, #f59e0b)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundSize: '200% 200%', animation: 'gradient 3s ease infinite' }}>AI Magic</span>
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
               FrameForge AI is a production-ready video editor that combines timeline editing, 
@@ -103,6 +104,13 @@ export default function Home() {
           <p>&copy; 2026 FrameForge AI. All rights reserved.</p>
         </div>
       </footer>
+      <style jsx>{`
+        @keyframes gradient {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
     </div>
   )
 }
