@@ -1,4 +1,4 @@
 {
-  "buildCommand": "cd ../.. && pnpm install --frozen-lockfile=false && pnpm --filter @frameforge/web build",
-  "installCommand": "pnpm install --no-frozen-lockfile"
+  "installCommand": "cd ../.. && npm install --legacy-peer-deps --no-audit --no-fund",
+  "buildCommand": "cd ../.. && npm run build"
 }

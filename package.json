@@ -2,21 +2,19 @@
   "name": "frameforge-ai",
   "private": true,
   "version": "1.0.0",
-  "packageManager": "pnpm@9.15.9",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
-    "node": ">=22.0.0",
-    "pnpm": "9.15.9"
+    "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "start": "pnpm -r --parallel start",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck",
-    "db:generate": "pnpm --filter @frameforge/db prisma:generate",
-    "db:migrate": "pnpm --filter @frameforge/db prisma:migrate",
-    "db:push": "pnpm --filter @frameforge/db prisma:push",
-    "db:studio": "pnpm --filter @frameforge/db prisma:studio"
+    "dev": "npm run dev --workspace=@frameforge/web & npm run dev --workspace=@frameforge/api & npm run dev --workspace=@frameforge/worker",
+    "build": "npm run build --workspace=@frameforge/web",
+    "start": "npm run start --workspace=@frameforge/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
