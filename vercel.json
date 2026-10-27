@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "installCommand": "npm install --legacy-peer-deps --no-audit --no-fund",
-  "buildCommand": "npm run build --workspace=@frameforge/web",
-  "framework": "nextjs"
+  "buildCommand": "cd apps/web && npm install --legacy-peer-deps --no-audit --no-fund && npm run build",
+  "outputDirectory": "apps/web/.next"
 }
