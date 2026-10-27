@@ -177,3 +177,34 @@ export class AuthService {
     await this.prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date() } });
   }
 }
+
+  async oauthLogin(provider: string, idToken: string, meta: { ip?: string | null; userAgent?: string | null }) {
+    // Mock OAuth implementation for development
+    const email = `user_${Date.now()}@${provider}.oauth.com`;
+    const name = `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`;
+    
+    let account = await this.prisma.account.findFirst({
+      where: { provider, providerAccountId: idToken.slice(0, 50) },
+      include: { user: true },
+    });
+
+    if (!account) {
+      const user = await this.prisma.user.create({
+        data: {
+          email,
+          name,
+          emailVerifiedAt: new Date(),
+          accounts: {
+            create: {
+              provider,
+              providerAccountId: idToken.slice(0, 50),
+            },
+          },
+        },
+      });
+      account = { userId: user.id, user } as any;
+    }
+
+    const session = await this.createSession(account.userId, meta);
+    return { user: this.sanitizeUser(account.user), session };
+  }
