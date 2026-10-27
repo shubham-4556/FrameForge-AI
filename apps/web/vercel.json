@@ -1,4 +1,4 @@
 {
-  "installCommand": "cd ../.. && npm install --legacy-peer-deps --no-audit --no-fund",
-  "buildCommand": "cd ../.. && npm run build"
+  "installCommand": "npm install --legacy-peer-deps --no-audit --no-fund",
+  "buildCommand": "npm run build"
 }

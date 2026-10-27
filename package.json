@@ -10,13 +10,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "npm run dev --workspace=@frameforge/web & npm run dev --workspace=@frameforge/api & npm run dev --workspace=@frameforge/worker",
+    "dev": "npm run dev --workspace=@frameforge/web",
     "build": "npm run build --workspace=@frameforge/web",
-    "start": "npm run start --workspace=@frameforge/web",
-    "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.3"
+    "start": "npm run start --workspace=@frameforge/web"
   }
 }
