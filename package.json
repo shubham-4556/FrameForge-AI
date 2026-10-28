@@ -2,10 +2,11 @@
   "name": "frameforge-ai",
   "private": true,
   "version": "1.0.0",
-  "engines": {
-    "node": ">=20.0.0"
-  },
+  "workspaces": [
+    "apps/web",
+    "packages/shared"
+  ],
   "scripts": {
-    "build": "cd apps/web && npm install --legacy-peer-deps --no-audit --no-fund && npm run build"
+    "build": "npm run build --workspace=@frameforge/web"
   }
 }
