@@ -11,8 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@frameforge/db": "workspace:*",
-    "@frameforge/shared": "workspace:*",
+    "@frameforge/db": "file:../../packages/db",
+    "@frameforge/shared": "file:../../packages/shared",
     "bullmq": "^5.23.0",
     "dotenv": "^16.4.5",
     "ioredis": "^5.4.1",

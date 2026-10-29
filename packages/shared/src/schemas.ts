@@ -44,6 +44,11 @@ export const signInSchema = z.object({
 });
 export type SignInInput = z.infer<typeof signInSchema>;
 
+export const oauthLoginSchema = z.object({
+  idToken: z.string().trim().min(1, 'Missing OAuth token').max(4096),
+});
+export type OAuthLoginInput = z.infer<typeof oauthLoginSchema>;
+
 export const forgotPasswordSchema = z.object({ email: emailSchema });
 export const resetPasswordSchema = z.object({ token: tokenSchema, password: passwordSchema });
 export const verifyEmailSchema = z.object({ token: tokenSchema });

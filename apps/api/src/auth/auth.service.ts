@@ -176,35 +176,34 @@ export class AuthService {
   async deleteAccount(userId: string): Promise<void> {
     await this.prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date() } });
   }
-}
 
-  async oauthLogin(provider: string, idToken: string, meta: { ip?: string | null; userAgent?: string | null }) {
-    // Mock OAuth implementation for development
-    const email = `user_${Date.now()}@${provider}.oauth.com`;
-    const name = `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`;
-    
-    let account = await this.prisma.account.findFirst({
-      where: { provider, providerAccountId: idToken.slice(0, 50) },
+  async oauthLogin(provider: string, idToken: string, meta: SessionMeta): Promise<SessionBundle> {
+    const providerAccountId = idToken.slice(0, 50);
+    const existing = await this.prisma.account.findFirst({
+      where: { provider, providerAccountId },
       include: { user: true },
     });
 
-    if (!account) {
-      const user = await this.prisma.user.create({
+    let user = existing?.user;
+    if (user && user.deletedAt) {
+      throw new UnauthorizedException({ code: 'ACCOUNT_DELETED', message: 'This account is no longer available' });
+    }
+
+    if (!user) {
+      user = await this.prisma.user.create({
         data: {
-          email,
-          name,
+          email: `user_${Date.now()}@${provider}.oauth.com`,
+          name: `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`,
           emailVerifiedAt: new Date(),
           accounts: {
-            create: {
-              provider,
-              providerAccountId: idToken.slice(0, 50),
-            },
+            create: { provider, providerAccountId },
           },
         },
       });
-      account = { userId: user.id, user } as any;
     }
 
-    const session = await this.createSession(account.userId, meta);
-    return { user: this.sanitizeUser(account.user), session };
+    const { token, expiresAt, sessionId } = await this.createSessionRecord(this.prisma, user.id, meta);
+    const response = await this.buildSessionResponse(user.id, sessionId, expiresAt);
+    return { token, expiresAt, response };
   }
+}

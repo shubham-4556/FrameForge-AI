@@ -8,6 +8,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "types": ["node"],
+    "declaration": false,
     "strictPropertyInitialization": false
   },
   "include": ["src/**/*.ts"],
