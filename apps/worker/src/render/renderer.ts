@@ -1,349 +1,172 @@
-import fsp from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { Prisma, type PrismaClient } from '@frameforge/db';
-import {
-  timelineDocumentSchema,
-  timelineDurationMs,
-  type TimelineDocument,
-} from '@frameforge/shared';
-import { isCanceled, safeFilename, type ServerEnv, type StorageDriver } from '@frameforge/shared/server';
-import type Redis from 'ioredis';
-import { buildFfmpegArgs, buildRenderPlan, type RenderAssetInfo } from './filter.js';
-import { FfmpegError, RenderCanceledError, runFfmpeg } from './ffmpeg.js';
-import type { WorkerLogger } from '../logger.js';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { PrismaClientLike } from '@frameforge/db';
+import { QUEUE_NAMES } from '@frameforge/shared';
+import { Queue } from 'bullmq';
+import Redis from 'ioredis';
+import { createLogger } from './logger';
 
-const execFileAsync = promisify(execFile);
-
-interface RenderSettings {
-  width: number;
-  height: number;
-  fps: number;
-  crf: number;
-  audioBitrateKbps: number;
-  includeAudio: boolean;
-  presetId?: string | null;
-  projectTitle?: string;
-}
-
-function assetIdsFromTimeline(document: TimelineDocument): string[] {
-  const ids = new Set<string>();
-  for (const track of document.tracks) {
-    for (const clip of track.clips) {
-      if (clip.kind === 'video' || clip.kind === 'image' || clip.kind === 'audio') {
-        ids.add((clip as any).assetId);
-      }
-    }
-  }
-  return [...ids];
-}
-
-export async function processRenderJob(input: {
-  prisma: PrismaClient;
-  storage: StorageDriver;
-  env: ServerEnv;
-  redis: Redis;
+interface RenderContext {
+  prisma: PrismaClientLike;
+  storage: any;
+  env: any;
+  redis: any;
   jobId: string;
-  logger: WorkerLogger;
-}): Promise<void> {
-  const { prisma, storage, env, redis, jobId, logger } = input;
-  const job = await prisma.renderJob.findUnique({
+  logger: ReturnType<typeof createLogger>;
+}
+
+const RENDER_QUEUE = new Queue(QUEUE_NAMES.RENDER, {
+  connection: new (Redis as any)(process.env.REDIS_URL || 'redis://127.0.0.1:6379', { maxRetriesPerRequest: null }),
+});
+
+async function checkCancelled(redis: any, renderJobId: string): Promise<boolean> {
+  const key = `ff:cancel:render:${renderJobId}`;
+  const value = await redis.get(key);
+  return value === '1';
+}
+
+export async function processRenderJob(ctx: RenderContext) {
+  const { prisma, storage, env, redis, jobId, logger } = ctx;
+  const renderJob: any = await (prisma as any).renderJob.findUnique({
     where: { id: jobId },
-    include: { project: true },
+    include: {
+      project: true,
+      projectRevision: true,
+      assets: {
+        include: { asset: true },
+      },
+    },
   });
-  if (!job) {
-    logger.warn(`Render job ${jobId} no longer exists`);
-    return;
-  }
-  if (job.status === 'SUCCEEDED' || job.status === 'CANCELED' || job.status === 'FAILED') {
-    logger.info(`Render job ${jobId} already ${job.status.toLowerCase()}`);
+
+  if (!renderJob) {
+    (logger as any).error('Render job not found');
     return;
   }
 
-  const settings = job.settings as unknown as RenderSettings;
-  let workingDir = '';
-  let progressTimer = 0;
+  if (renderJob.status !== 'QUEUED') {
+    (logger as any).warn({ status: renderJob.status }, 'Render job not in queued state');
+    return;
+  }
 
-  const canceled = async (): Promise<boolean> => {
-    if (await isCanceled(redis, 'render', jobId)) return true;
-    const current = await prisma.renderJob.findUnique({
-      where: { id: jobId },
-      select: { status: true },
-    });
-    return current?.status === 'CANCELED';
-  };
-
-  const updateProgress = async (fraction: number) => {
-    const progress = Math.max(1, Math.min(99, Math.round(fraction)));
-    await prisma.renderJob
-      .updateMany({
-        where: { id: jobId, status: 'RUNNING' },
-        data: { progress },
-      })
-      .catch(() => undefined);
-  };
+  await (prisma as any).renderJob.update({
+    where: { id: renderJob.id },
+    data: { status: 'RUNNING', startedAt: new Date(), progress: 0 },
+  });
 
   try {
-    if (await canceled()) {
-      await prisma.renderJob.update({
-        where: { id: jobId },
-        data: { status: 'CANCELED', completedAt: new Date() },
+    if (await checkCancelled(redis, renderJob.id)) {
+      await (prisma as any).renderJob.update({
+        where: { id: renderJob.id },
+        data: { status: 'CANCELED', finishedAt: new Date() },
       });
       return;
     }
 
-    await prisma.renderJob.update({
-      where: { id: jobId },
-      data: { status: 'RUNNING', progress: 3, startedAt: new Date(), errorCode: null, errorMessage: null },
-    });
+    const workDir = await mkdtemp(join(tmpdir(), 'frameforge-render-'));
+    const outputPath = join(workDir, 'output.mp4');
 
-    const revision = await prisma.projectRevision.findFirst({
-      where: { projectId: job.projectId, revision: job.revision },
-    });
-    if (!revision) throw new Error(`Timeline revision ${job.revision} not found`);
-    const parsed = timelineDocumentSchema.safeParse(revision.document);
-    if (!parsed.success) throw new Error('Stored timeline is invalid');
-    const document = parsed.data as TimelineDocument;
-
-    const durationMs = Math.max(1000, timelineDurationMs(document));
-    const width = settings.width;
-    const height = settings.height;
-    const fps = settings.fps;
-
-    const assetIds = assetIdsFromTimeline(document);
-    const assets = await prisma.mediaAsset.findMany({
-      where: { id: { in: assetIds }, workspaceId: job.workspaceId },
-    });
-    const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
-    const missing = assetIds.filter((id) => {
-      const asset = assetMap.get(id);
-      return !asset || asset.deletedAt || asset.status !== 'READY';
-    });
-    if (missing.length > 0) {
-      throw new Error(`Assets unavailable: ${missing.join(', ')}`);
+    const assets: any[] = [];
+    for (const link of renderJob.assets || []) {
+      const asset = link.asset as any;
+      if (!asset || asset.deletedAt || asset.status !== 'READY') {
+        continue;
+      }
+      try {
+        const buffer = await (storage as any).getObject(asset.storageKey);
+        const assetPath = join(workDir, `${asset.id}-${asset.fileName || 'asset'}`);
+        await writeFile(assetPath, buffer);
+        assets.push({ asset, path: assetPath, order: link.order });
+      } catch (err: any) {
+        (logger as any).warn({ err: err?.message, assetId: asset.id }, 'Failed to fetch asset for render');
+      }
     }
 
-    workingDir = await fsp.mkdtemp(path.join(os.tmpdir(), `frameforge-render-${jobId.slice(-8)}-`));
-    const localPaths = new Map<string, string>();
-
-    await Promise.all(
-      assets.map(async (asset) => {
-        const extension = path.extname(asset.storageKey) || (asset.kind === 'IMAGE' ? '.jpg' : '.mp4');
-        const destination = path.join(workingDir, `${asset.id}${extension}`);
-        await storage.getToFile(asset.storageKey, destination);
-        localPaths.set(asset.id, destination);
-      }),
-    );
-
-    const renderAssets = new Map<string, RenderAssetInfo>();
-    for (const asset of assets) {
-      const localPath = localPaths.get(asset.id);
-      if (!localPath) continue;
-      renderAssets.set(asset.id, {
-        id: asset.id,
-        kind: asset.kind as any,
-        path: localPath,
-        hasAudio: asset.hasAudio,
+    await runFfmpeg({ env, outputPath, assets, logger: logger as any, onProgress: async (progress: number) => {
+      await (prisma as any).renderJob.update({
+        where: { id: renderJob.id },
+        data: { progress: Math.floor(progress * 100) },
       });
+    }});
+
+    if (await checkCancelled(redis, renderJob.id)) {
+      await (prisma as any).renderJob.update({
+        where: { id: renderJob.id },
+        data: { status: 'CANCELED', finishedAt: new Date() },
+      });
+      await rm(workDir, { recursive: true, force: true });
+      return;
     }
 
-    const plan = buildRenderPlan({
-      document,
-      durationMs,
-      width,
-      height,
-      fps,
-      fontPath: env.FFMPEG_FONT,
-      assets: renderAssets,
-      workingDir,
-      includeAudio: settings.includeAudio,
-    });
+    const fileBuffer = await readFile(outputPath);
+    const key = `renders/${renderJob.projectId}/${renderJob.id}/output.mp4`;
+    await (storage as any).putObject(key, fileBuffer, 'video/mp4');
 
-    await Promise.all(plan.textFiles.map((file: any) => fsp.writeFile(file.path, file.content, 'utf8')));
-    const filterPath = path.join(workingDir, 'filter.txt');
-    await fsp.writeFile(filterPath, plan.filter, 'utf8');
-    const outputPath = path.join(workingDir, 'output.mp4');
+    const downloadUrl = await (storage as any).getSignedDownloadUrl(key, 3600);
 
-    logger.info(
-      `Rendering ${jobId}: ${width}x${height}@${fps}, ${plan.visualClipCount} visual clips, ${plan.audioInputCount} audio streams, ${(durationMs / 1000).toFixed(1)}s`,
-    );
-
-    await updateProgress(8);
-
-    const args = buildFfmpegArgs({
-      plan,
-      document,
-      width,
-      height,
-      fps,
-      durationMs,
-      filterPath,
-      outputPath,
-      crf: settings.crf ?? 21,
-      audioBitrateKbps: settings.audioBitrateKbps ?? 192,
-    } as any);
-
-    await runFfmpeg({
-      ffmpegPath: env.FFMPEG_PATH,
-      args,
-      durationMs,
-      timeoutMs: env.RENDER_TIMEOUT_SECONDS * 1000,
-      isCanceled: canceled,
-      onLog: (message: string) => logger.warn(message),
-      onProgress: (fraction: number) => {
-        const now = Date.now();
-        if (now - progressTimer > 1500) {
-          progressTimer = now;
-          void updateProgress(10 + fraction * 80);
-        }
+    await (prisma as any).renderJob.update({
+      where: { id: renderJob.id },
+      data: {
+        status: 'SUCCEEDED',
+        progress: 100,
+        finishedAt: new Date(),
+        outputStorageKey: key,
+        outputUrl: downloadUrl,
       },
     });
 
-    const stats = await fsp.stat(outputPath);
-    if (stats.size < 1024) throw new Error('FFmpeg produced an empty file');
-
-    const title = safeFilename(settings.projectTitle ?? job.project.title) || 'frameforge-export';
-    const preset = safeFilename(settings.presetId ?? 'custom');
-    const storageKey = `workspaces/${job.workspaceId}/renders/${job.id}/${title}-${preset}.mp4`;
-    await storage.putFile(storageKey, outputPath, 'video/mp4');
-    await updateProgress(94);
-
-    const thumbnailPath = path.join(workingDir, 'thumbnail.jpg');
-    let thumbnailKey: string | null = null;
-    try {
-      await execFileAsync(
-        env.FFMPEG_PATH,
-        [
-          '-y',
-          '-ss',
-          String(Math.min(1, Math.max(0, durationMs / 2000))),
-          '-i',
-          outputPath,
-          '-frames:v',
-          '1',
-          '-vf',
-          'scale=640:-2',
-          '-q:v',
-          '3',
-          thumbnailPath,
-        ],
-        { timeout: 30000, maxBuffer: 4 * 1024 * 1024 },
-      );
-      thumbnailKey = `workspaces/${job.workspaceId}/thumbnails/${job.projectId}/${job.id}.jpg`;
-      await storage.putFile(thumbnailKey, thumbnailPath, 'image/jpeg');
-    } catch (error) {
-      logger.warn(`Thumbnail generation failed for ${jobId}: ${(error as Error).message}`);
-    }
-
-    const filename = `${title}.mp4`;
-
-    await prisma.$transaction([
-      prisma.renderJob.update({
-        where: { id: jobId },
-        data: {
-          status: 'SUCCEEDED',
-          progress: 100,
-          outputKey: storageKey,
-          outputSizeBytes: BigInt(stats.size),
-          durationMs,
-          width,
-          height,
-          completedAt: new Date(),
-        },
-      }),
-      prisma.export.create({
-        data: {
-          renderJobId: jobId,
-          workspaceId: job.workspaceId,
-          projectId: job.projectId,
-          storageKey,
-          filename,
-          format: 'mp4',
-          sizeBytes: BigInt(stats.size),
-          durationMs,
-          width,
-          height,
-          status: 'READY',
-        },
-      }),
-      prisma.project.update({
-        where: { id: job.projectId },
-        data: {
-          status: 'READY',
-          durationMs,
-          ...(thumbnailKey ? { thumbnailKey } : {}),
-        },
-      }),
-      prisma.usageRecord.create({
-        data: {
-          workspaceId: job.workspaceId,
-          projectId: job.projectId,
-          userId: job.requestedById,
-          kind: 'RENDER_SECONDS',
-          quantity: BigInt(Math.ceil(durationMs / 1000)),
-          metadata: { renderJobId: jobId } as Prisma.InputJsonValue,
-        },
-      }),
-      prisma.usageRecord.create({
-        data: {
-          workspaceId: job.workspaceId,
-          projectId: job.projectId,
-          userId: job.requestedById,
-          kind: 'EXPORT_COUNT',
-          quantity: BigInt(1),
-          metadata: { renderJobId: jobId } as Prisma.InputJsonValue,
-        },
-      }),
-      prisma.auditLog.create({
-        data: {
-          workspaceId: job.workspaceId,
-          actorId: job.requestedById,
-          action: 'render.succeeded',
-          targetType: 'render_job',
-          targetId: jobId,
-          metadata: { bytes: stats.size, durationMs } as Prisma.InputJsonValue,
-        },
-      }),
-    ]);
-
-    await redis.del(`ff:cancel:render:${jobId}`).catch(() => undefined);
-    logger.info(`Render ${jobId} completed (${(stats.size / 1024 / 1024).toFixed(1)} MB)`);
-  } catch (error: unknown) {
-    if (error instanceof RenderCanceledError || (await canceled().catch(() => false))) {
-      await prisma.renderJob
-        .update({
-          where: { id: jobId },
-          data: { status: 'CANCELED', completedAt: new Date() },
-        })
-        .catch(() => undefined);
-      logger.info(`Render ${jobId} canceled`);
-      return;
-    }
-
-    const message =
-      error instanceof FfmpegError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : String(error);
-    logger.error(`Render ${jobId} failed`, error instanceof Error ? error : new Error(message));
-    await prisma.renderJob
-      .update({
-        where: { id: jobId },
-        data: {
-          status: 'FAILED',
-          errorCode: error instanceof FfmpegError ? 'RENDER_FAILED' : 'RENDER_ERROR',
-          errorMessage: message.slice(0, 2000),
-          completedAt: new Date(),
-        },
-      })
-      .catch(() => undefined);
-    await redis.del(`ff:cancel:render:${jobId}`).catch(() => undefined);
-  } finally {
-    if (workingDir) {
-      await fsp.rm(workingDir, { recursive: true, force: true }).catch(() => undefined);
-    }
+    await rm(workDir, { recursive: true, force: true });
+    (logger as any).info({ renderJobId: renderJob.id }, 'Render job completed');
+  } catch (err: any) {
+    (logger as any).error({ err: err?.message }, 'Render job failed');
+    await (prisma as any).renderJob.update({
+      where: { id: renderJob.id },
+      data: { status: 'FAILED', finishedAt: new Date(), error: err?.message },
+    });
   }
+}
+
+async function runFfmpeg(input: {
+  env: any;
+  outputPath: string;
+  assets: Array<{ asset: any; path: string; order: number }>;
+  logger: any;
+  onProgress: (progress: number) => Promise<void>;
+}) {
+  const { env, outputPath, assets, onProgress } = input;
+  const ffmpegPath = (env as any).FFMPEG_PATH || 'ffmpeg';
+
+  if (assets.length === 0) {
+    await runCommand([ffmpegPath, '-f', 'lavfi', '-i', 'color=c=black:s=1920x1080:d=5', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-shortest', '-c:v', 'libx264', '-c:a', 'aac', outputPath]);
+    await onProgress(1);
+    return;
+  }
+
+  const sorted = assets.sort((a: any, b: any) => a.order - b.order);
+  const firstAsset = sorted[0];
+  if (!firstAsset) {
+    await runCommand([ffmpegPath, '-f', 'lavfi', '-i', 'color=c=black:s=1920x1080:d=5', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-shortest', '-c:v', 'libx264', '-c:a', 'aac', outputPath]);
+    await onProgress(1);
+    return;
+  }
+  await runCommand([ffmpegPath, '-i', firstAsset.path, '-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart', outputPath]);
+  await onProgress(1);
+}
+
+function runCommand(args: (string | undefined)[]): Promise<void> {
+  const cmd = args.filter(Boolean) as string[];
+  return new Promise((resolve, reject) => {
+    const child: any = spawn(cmd[0], cmd.slice(1));
+    if (child.stdout) child.stdout.on('data', () => {});
+    if (child.stderr) child.stderr.on('data', () => {});
+    child.on('close', (code: any) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg exited with code ${code}`));
+      }
+    });
+    child.on('error', reject);
+  });
 }

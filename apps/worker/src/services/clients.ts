@@ -1,12 +1,24 @@
-import path from 'node:path';
-import dotenv from 'dotenv';
-import { PrismaClient } from '@frameforge/db';
-import { createStorage, getServerEnv, type ServerEnv, type StorageDriver } from '@frameforge/shared/server';
+import Redis from 'ioredis';
+import * as dotenv from 'dotenv';
+import { PrismaClientLike } from '@frameforge/db';
 
-for (const candidate of ['.env', '../../.env']) {
-  dotenv.config({ path: path.resolve(process.cwd(), candidate), override: false });
+dotenv.config({ path: process.env.DOTENV_PATH ?? '../../.env' });
+
+export const redis: any = new (Redis as any)(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
+  maxRetriesPerRequest: null,
+});
+
+export const prisma: PrismaClientLike = new (require('@frameforge/db').PrismaClient)({
+  log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['warn', 'error'],
+}) as any;
+
+export async function ensureRedisConnection(): Promise<void> {
+  try {
+    if ((redis as any).status === 'ready') {
+      return;
+    }
+    if (typeof (redis as any).connect === 'function') {
+      await (redis as any).connect().catch(() => undefined);
+    }
+  } catch {}
 }
-
-export const env: ServerEnv = getServerEnv();
-export const prisma = new PrismaClient({ log: ['warn', 'error'] });
-export const storage: StorageDriver = createStorage(env);

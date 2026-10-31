@@ -79,8 +79,8 @@ export class BillingService {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price, quantity: 1 }],
-      success_url: `${this.env.APP_URL}/app/settings?billing=success&workspace=${workspaceId}`,
-      cancel_url: `${this.env.APP_URL}/app/settings?billing=canceled&workspace=${workspaceId}`,
+      success_url: `${this.env.APP_URL}/settings?billing=success&workspace=${workspaceId}`,
+      cancel_url: `${this.env.APP_URL}/settings?billing=canceled&workspace=${workspaceId}`,
       client_reference_id: workspaceId,
       ...(workspace.subscription?.externalCustomerId
         ? { customer: workspace.subscription.externalCustomerId }
@@ -118,7 +118,7 @@ export class BillingService {
     }
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.externalCustomerId,
-      return_url: `${this.env.APP_URL}/app/settings?workspace=${workspaceId}`,
+      return_url: `${this.env.APP_URL}/settings?workspace=${workspaceId}`,
     });
     return { url: session.url };
   }

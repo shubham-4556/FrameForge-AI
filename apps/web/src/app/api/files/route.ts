@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyStorageToken } from '@frameforge/shared/server';
+import { resolveStorageDir, verifyStorageToken } from '@frameforge/shared/server';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { getServerEnv } from '@frameforge/shared/server';
-
-function resolveStorageDir(env: ReturnType<typeof getServerEnv>): string {
-  if (env.STORAGE_DRIVER === 's3') return '/tmp/frameforge-storage';
-  if (path.isAbsolute(env.LOCAL_STORAGE_DIR)) return env.LOCAL_STORAGE_DIR;
-  return path.resolve(process.cwd(), env.LOCAL_STORAGE_DIR);
-}
 
 function sanitize(key: string): string {
   const normalized = path.normalize(key).replace(/\\/g, '/');
@@ -22,7 +16,7 @@ export async function GET(request: NextRequest) {
     const token = request.nextUrl.searchParams.get('token');
     if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 401 });
     const payload = verifyStorageToken(token, env.SIGNING_SECRET);
-    if (payload.purpose !== 'download') return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    if (!payload || payload.purpose !== 'download') return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const key = sanitize(payload.key);
     const root = resolveStorageDir(env);
@@ -50,7 +44,7 @@ export async function PUT(request: NextRequest) {
     const token = request.nextUrl.searchParams.get('token');
     if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 401 });
     const payload = verifyStorageToken(token, env.SIGNING_SECRET);
-    if (payload.purpose !== 'upload') return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    if (!payload || payload.purpose !== 'upload') return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const contentType = request.headers.get('content-type') ?? payload.mimeType;
     if (payload.mimeType && contentType && contentType !== payload.mimeType) {

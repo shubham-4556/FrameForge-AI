@@ -6,57 +6,102 @@ const config: Config = {
   theme: {
     container: {
       center: true,
-      padding: { DEFAULT: '1.25rem', lg: '2rem' },
-      screens: { '2xl': '1280px' },
+      padding: { DEFAULT: '1.25rem', sm: '1.5rem', lg: '2rem' },
+      screens: { '2xl': '1320px' },
     },
     extend: {
       colors: {
-        canvas: '#07080b',
-        surface: {
-          DEFAULT: '#0c0e13',
-          raised: '#11141b',
-          overlay: '#171a22',
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
         },
-        line: {
-          DEFAULT: '#1d212b',
-          strong: '#2a303d',
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
         },
-        ink: {
-          DEFAULT: '#f2f3f7',
-          muted: '#9ba3b4',
-          faint: '#687084',
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
         },
         accent: {
-          DEFAULT: '#7c5cff',
-          bright: '#9a80ff',
-          dim: '#5a3fe0',
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
         },
-        cyan: '#52d6ff',
-        success: '#46d39a',
-        warning: '#f7b955',
-        danger: '#ff6b6b',
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        surface: {
+          DEFAULT: 'hsl(var(--surface-1))',
+          raised: 'hsl(var(--surface-2))',
+          overlay: 'hsl(var(--surface-3))',
+        },
+        line: {
+          DEFAULT: 'hsl(var(--border))',
+          strong: 'hsl(var(--border-strong))',
+        },
+        ink: {
+          DEFAULT: 'hsl(var(--foreground))',
+          muted: 'hsl(var(--muted-foreground))',
+          faint: 'hsl(var(--faint))',
+        },
+        brand: {
+          DEFAULT: 'hsl(var(--brand))',
+          bright: 'hsl(var(--brand-bright))',
+          deep: 'hsl(var(--brand-deep))',
+        },
+        magenta: 'hsl(var(--magenta))',
+        cyan: 'hsl(var(--cyan))',
+        success: 'hsl(var(--success))',
+        warning: 'hsl(var(--warning))',
+        danger: 'hsl(var(--danger))',
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-geist-mono)', 'ui-monospace', 'monospace'],
+        display: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+        serif: ['Iowan Old Style', 'Palatino Linotype', 'Georgia', 'serif'],
+      },
+      letterSpacing: {
+        tightest: '-0.045em',
+        editorial: '-0.03em',
       },
       borderRadius: {
-        xl: '0.9rem',
+        xl: '0.85rem',
         '2xl': '1.15rem',
         '3xl': '1.5rem',
+        '4xl': '2rem',
       },
       boxShadow: {
-        glow: '0 0 60px rgba(124, 92, 255, 0.18)',
-        panel: '0 20px 60px -30px rgba(0, 0, 0, 0.85)',
+        glow: '0 0 80px -20px hsl(var(--brand) / 0.45)',
+        panel: '0 24px 80px -40px rgba(0, 0, 0, 0.75)',
+        lift: '0 18px 50px -30px rgba(0, 0, 0, 0.55)',
+        ring: 'inset 0 1px 0 0 hsl(var(--foreground) / 0.06)',
       },
       backgroundImage: {
         'grid-fade':
-          'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(124,92,255,0.16), transparent 70%)',
-        'accent-line': 'linear-gradient(90deg, transparent, rgba(124,92,255,0.7), transparent)',
+          'radial-gradient(ellipse 70% 55% at 50% -10%, hsl(var(--brand) / 0.22), transparent 72%)',
+        'accent-line':
+          'linear-gradient(90deg, transparent, hsl(var(--brand) / 0.8), transparent)',
+        'panel-sheen':
+          'linear-gradient(135deg, hsl(var(--foreground) / 0.05), transparent 42%)',
       },
       keyframes: {
         'fade-up': {
-          '0%': { opacity: '0', transform: 'translateY(12px)' },
+          '0%': { opacity: '0', transform: 'translateY(14px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         shimmer: {
@@ -64,19 +109,35 @@ const config: Config = {
           '100%': { backgroundPosition: '700px 0' },
         },
         'pulse-soft': {
-          '0%, 100%': { opacity: '0.5' },
+          '0%, 100%': { opacity: '0.45' },
           '50%': { opacity: '1' },
         },
         'scan-line': {
-          '0%': { transform: 'translateX(-30%)' },
-          '100%': { transform: 'translateX(130%)' },
+          '0%': { transform: 'translateX(-40%)' },
+          '100%': { transform: 'translateX(140%)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        'marquee-left': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+        'border-spin': {
+          '100%': { transform: 'rotate(1turn)' },
         },
       },
       animation: {
-        'fade-up': 'fade-up 0.5s ease-out both',
-        shimmer: 'shimmer 1.6s linear infinite',
-        'pulse-soft': 'pulse-soft 2.4s ease-in-out infinite',
-        'scan-line': 'scan-line 3.5s ease-in-out infinite',
+        'fade-up': 'fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
+        shimmer: 'shimmer 1.8s linear infinite',
+        'pulse-soft': 'pulse-soft 2.6s ease-in-out infinite',
+        'scan-line': 'scan-line 4s ease-in-out infinite',
+        float: 'float 7s ease-in-out infinite',
+        marquee: 'marquee-left 36s linear infinite',
+      },
+      transitionTimingFunction: {
+        editorial: 'cubic-bezier(0.22, 1, 0.36, 1)',
       },
     },
   },
