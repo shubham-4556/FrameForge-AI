@@ -1,0 +1,47 @@
+services:
+  - type: redis
+    name: frameforge-redis
+    plan: free
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
+  - type: web
+    name: frameforge-api
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /api/v1/health
+    buildCommand: npm run render:build:api
+    startCommand: npm run render:start:api
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: "10000"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: frameforge-redis
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SIGNING_SECRET
+        generateValue: true
+      - key: APP_URL
+        sync: false
+      - key: API_INTERNAL_URL
+        sync: false
+      - key: STORAGE_DRIVER
+        value: local
+      - key: STORAGE_LOCAL_DIR
+        value: ./.data/storage
+      - key: AI_PROVIDER
+        value: mock
+      - key: MAIL_DRIVER
+        value: log
