@@ -15,11 +15,11 @@
     "build:packages": "npm run build --workspace=@frameforge/shared && npm --prefix packages/db run build",
     "start": "npm run start --workspace=@frameforge/web",
     "vercel-build": "npm run build --workspace=@frameforge/shared && npm run build --workspace=@frameforge/web",
-    "render:build:shared": "npm --prefix packages/shared install --legacy-peer-deps --no-audit --no-fund && npm --prefix packages/shared run build",
-    "render:build:db": "npm --prefix packages/db install --legacy-peer-deps --no-audit --no-fund && npm --prefix packages/db run generate && npm --prefix packages/db run build",
-    "render:build:api": "npm run render:build:shared && npm run render:build:db && npm --prefix apps/api install --legacy-peer-deps --no-audit --no-fund && npm --prefix apps/api run build",
+    "render:build:shared": "npm --prefix packages/shared install --include=dev --legacy-peer-deps --no-audit --no-fund && npm --prefix packages/shared run build",
+    "render:build:db": "npm --prefix packages/db install --include=dev --legacy-peer-deps --no-audit --no-fund && npm --prefix packages/db run generate && npm --prefix packages/db run build",
+    "render:build:api": "npm run render:build:shared && npm run render:build:db && npm --prefix apps/api install --include=dev --legacy-peer-deps --no-audit --no-fund && npm --prefix apps/api run build",
     "render:start:api": "npm --prefix apps/api run start",
-    "render:build:worker": "npm run render:build:shared && npm run render:build:db && npm --prefix apps/worker install --legacy-peer-deps --no-audit --no-fund && npm --prefix apps/worker run build",
+    "render:build:worker": "npm run render:build:shared && npm run render:build:db && npm --prefix apps/worker install --include=dev --legacy-peer-deps --no-audit --no-fund && npm --prefix apps/worker run build",
     "render:start:worker": "npm --prefix apps/worker run start"
   },
   "dependencies": {

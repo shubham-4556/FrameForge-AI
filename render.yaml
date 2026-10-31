@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     branch: main
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /api/v1/health/live
     buildCommand: npm run render:build:api
     startCommand: npm run render:start:api
     envVars:
