@@ -1,11 +1,4 @@
 services:
-  - type: redis
-    name: frameforge-redis
-    plan: free
-    region: oregon
-    ipAllowList: []
-    maxmemoryPolicy: noeviction
-
   - type: web
     name: frameforge-api
     runtime: node
@@ -25,10 +18,7 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: frameforge-redis
-          property: connectionString
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: SIGNING_SECRET
