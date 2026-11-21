@@ -50,7 +50,7 @@ export function NewProjectDialog({
 }: NewProjectDialogProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { workspace, isPreview, needsAuth, isLoading } = useWorkspace()
+  const { workspace, isPreview, needsAuth, isLoading, error, refresh } = useWorkspace()
   const [open, setOpen] = React.useState(false)
   const [title, setTitle] = React.useState('')
   const [ratio, setRatio] = React.useState<AspectRatio>('16:9')
@@ -100,20 +100,50 @@ export function NewProjectDialog({
         {isPreview || !workspace ? (
           <>
             <DialogHeader>
-              <DialogTitle>{needsAuth ? 'Sign in to start a project' : 'Connect the studio API'}</DialogTitle>
+              <DialogTitle>
+                {needsAuth
+                  ? 'Sign in to start a project'
+                  : error
+                    ? 'Studio API unavailable'
+                    : 'Connect the studio API'}
+              </DialogTitle>
               <DialogDescription>
                 {needsAuth
                   ? 'Projects are saved to your workspace. Sign in to create your first timeline.'
-                  : 'The web app is running without the API. Start it with `npm run dev:api`, then refresh to create real projects.'}
+                  : error
+                    ? error.message
+                    : process.env.NODE_ENV === 'development'
+                      ? 'The web app is running without the API. Start it with `npm run dev:api`, then refresh to create real projects.'
+                      : 'The studio API is not reachable right now. Try again in a moment.'}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button asChild variant="brand">
-                <a href={needsAuth ? '/auth/sign-in' : '/dashboard'}>
-                  {needsAuth ? 'Sign in' : 'Back to studio'}
+              {needsAuth ? (
+                <Button asChild variant="brand">
+                  <a href="/auth/sign-in">
+                    Sign in
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                </Button>
+              ) : error ? (
+                <Button
+                  variant="brand"
+                  onClick={() => {
+                    refresh()
+                    setOpen(false)
+                  }}
+                >
+                  Retry connection
                   <ArrowRight className="h-4 w-4" />
-                </a>
-              </Button>
+                </Button>
+              ) : (
+                <Button asChild variant="brand">
+                  <a href="/dashboard">
+                    Back to studio
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
             </DialogFooter>
           </>
         ) : (

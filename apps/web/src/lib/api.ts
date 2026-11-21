@@ -1,4 +1,7 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '/api/v1'
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  '/api/v1'
 
 export class ApiError extends Error {
   readonly status: number
@@ -29,17 +32,26 @@ class ApiClient {
       })
     } catch {
       throw new ApiError(
-        'The FrameForge API is unreachable. Start it with `npm run dev:api`.',
+        process.env.NODE_ENV === 'development'
+          ? 'The FrameForge API is unreachable. Start it with `npm run dev:api`.'
+          : 'The FrameForge API is unreachable. Please try again in a moment.',
         0,
         'API_UNREACHABLE'
       )
     }
 
     if (!res.ok) {
-      const payload = await res.json().catch(() => null)
+      const contentType = res.headers.get('content-type') ?? ''
+      const payload = contentType.includes('application/json')
+        ? await res.json().catch(() => null)
+        : null
       const error = payload?.error ?? payload ?? {}
+      const fallback =
+        res.status >= 500
+          ? `The FrameForge API is temporarily unavailable (HTTP ${res.status}). Please try again shortly.`
+          : 'Request failed'
       throw new ApiError(
-        typeof error.message === 'string' ? error.message : 'Request failed',
+        typeof error.message === 'string' ? error.message : fallback,
         res.status,
         typeof error.code === 'string' ? error.code : 'REQUEST_FAILED',
         error.details

@@ -1,0 +1,59 @@
+# Template for a paid Render background worker that runs AI + export jobs.
+# Copy this service block into render.yaml (or add it in the Render dashboard)
+# once S3 storage and the starter plan are configured.
+services:
+  - type: worker
+    name: frameforge-worker
+    runtime: node
+    plan: starter
+    region: oregon
+    branch: main
+    buildCommand: npm run render:build:worker
+    startCommand: npm run render:start:worker
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SIGNING_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: AI_PROVIDER
+        value: mock
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: OPENAI_TEXT_MODEL
+        value: gpt-4o-mini
+      - key: OPENAI_IMAGE_MODEL
+        value: gpt-image-1
+      - key: OPENAI_TTS_MODEL
+        value: gpt-4o-mini-tts
+      - key: OPENAI_TTS_VOICE
+        value: alloy
+      - key: OPENAI_TRANSCRIBE_MODEL
+        value: whisper-1
+      - key: AI_GENERATE_IMAGES
+        value: "false"
+      - key: STORAGE_DRIVER
+        value: s3
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_FORCE_PATH_STYLE
+        value: "true"
+      - key: WORKER_CONCURRENCY
+        value: "1"
