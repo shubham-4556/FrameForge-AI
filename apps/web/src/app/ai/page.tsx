@@ -8,6 +8,7 @@ import {
   Check,
   ChevronDown,
   Clapperboard,
+  Copy,
   FileText,
   Image as ImageIcon,
   Layers,
@@ -142,6 +143,103 @@ function modeLabel(kind: string) {
   return modes.find((mode) => mode.kind === kind) ?? modes[0]!
 }
 
+function AiJobResult({ job }: { job: AiJob | Partial<AiJob> }) {
+  const result = (job.result ?? {}) as Record<string, unknown>
+  const text = typeof result.text === 'string' && result.text.trim() ? result.text : null
+  const audioUrl = typeof result.audioUrl === 'string' ? result.audioUrl : null
+  const scenes = Array.isArray(result.scenes) ? (result.scenes as Array<Record<string, unknown>>) : []
+  const images = scenes.filter((scene) => typeof scene.url === 'string')
+  const [copied, setCopied] = React.useState(false)
+
+  const copyText = async () => {
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      toast.success('Copied to clipboard')
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error('Could not copy')
+    }
+  }
+
+  const hasOutput = Boolean(text || audioUrl || images.length)
+  if (!hasOutput) {
+    return (
+      <div className="mt-3 rounded-lg border border-border/60 bg-surface-2/50 px-2.5 py-2 font-mono text-[9px] uppercase tracking-[0.1em] text-faint">
+        {job.mock ? 'Mock output · no media file was produced' : 'Generation complete · no preview available'}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      {audioUrl ? (
+        <audio controls preload="metadata" src={audioUrl} className="w-full">
+          <track kind="captions" />
+        </audio>
+      ) : null}
+
+      {images.length > 0 ? (
+        <div className="grid grid-cols-3 gap-1.5">
+          {images.map((scene, index) => (
+            <a
+              key={index}
+              href={String(scene.url)}
+              target="_blank"
+              rel="noreferrer"
+              className="group relative overflow-hidden rounded-lg border border-border/60"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={String(scene.url)}
+                alt={String(scene.title ?? `Scene ${index + 1}`)}
+                className="aspect-video w-full object-cover transition group-hover:scale-[1.03]"
+              />
+              <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[8px] uppercase tracking-wide text-white">
+                {String(scene.durationSeconds ?? 3)}s
+              </span>
+            </a>
+          ))}
+        </div>
+      ) : null}
+
+      {text ? (
+        <div className="rounded-lg border border-border/60 bg-surface-2/40">
+          <div className="flex items-center justify-between border-b border-border/50 px-2.5 py-1.5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-faint">
+              {job.kind === 'TRANSCRIPTION' ? 'Transcript' : 'Generated text'}
+            </span>
+            <button
+              type="button"
+              onClick={copyText}
+              className="inline-flex items-center gap-1 text-[9px] text-muted-foreground transition hover:text-foreground"
+            >
+              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <pre className="max-h-44 overflow-auto whitespace-pre-wrap px-2.5 py-2 text-[10px] leading-relaxed text-muted-foreground">
+            {text}
+          </pre>
+        </div>
+      ) : null}
+
+      {!text && scenes.length > 0 ? (
+        <ul className="space-y-1">
+          {scenes.slice(0, 5).map((scene, index) => (
+            <li key={index} className="flex items-baseline gap-2 text-[10px] text-muted-foreground">
+              <span className="font-mono text-[9px] text-faint">{index + 1}.</span>
+              <span className="min-w-0 flex-1 truncate">{String(scene.title ?? scene.description ?? '')}</span>
+              <span className="font-mono text-[9px] text-faint">{String(scene.durationSeconds ?? 3)}s</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 function AiJobCard({
   job,
   isPreview,
@@ -212,11 +310,7 @@ function AiJobCard({
       ) : null}
 
       {job.status === 'SUCCEEDED' ? (
-        <div className="mt-3 rounded-lg border border-border/60 bg-surface-2/50 px-2.5 py-2 font-mono text-[9px] uppercase tracking-[0.1em] text-faint">
-          {job.mock
-            ? 'Mock output · no media file was produced'
-            : 'Generation complete · open the result in the studio'}
-        </div>
+        <AiJobResult job={job} />
       ) : null}
 
       {job.status === 'FAILED' && job.errorMessage ? (

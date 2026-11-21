@@ -67,10 +67,8 @@ export class AiService {
   ) {}
 
   private modelFor(kind: AiJobKind): string {
-    if (kind === 'TEXT_TO_SPEECH' || kind === 'TRANSCRIPTION') return this.env.OPENAI_TTS_MODEL;
-    if (kind === 'STORYBOARD' || kind === 'IMAGE_TO_VIDEO' || kind === 'TEXT_TO_VIDEO') {
-      return this.env.OPENAI_IMAGE_MODEL;
-    }
+    if (kind === 'TEXT_TO_SPEECH') return this.env.OPENAI_TTS_MODEL;
+    if (kind === 'TRANSCRIPTION') return this.env.OPENAI_TRANSCRIBE_MODEL;
     return this.env.OPENAI_TEXT_MODEL;
   }
 

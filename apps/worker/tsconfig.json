@@ -7,7 +7,18 @@
     "rootDir": "./src",
     "noEmitOnError": false,
     "strict": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@frameforge/shared/server": [
+        "../../packages/shared/dist/server/index.d.ts"
+      ],
+      "@frameforge/shared": [
+        "../../packages/shared/dist/index.d.ts"
+      ]
+    }
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ]
 }
